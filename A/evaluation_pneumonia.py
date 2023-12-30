@@ -1,175 +1,82 @@
-from tqdm import tqdm
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import torch.utils.data as data
-import torchvision.transforms as transforms
-
+from model_pneumonia import ResNet50
+from data_preprocessing_pneumonia import data
+from sklearn.metrics import confusion_matrix, classification_report
+import seaborn as sns
+import matplotlib.pyplot as plt
 import medmnist
 from medmnist import INFO, Evaluator
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+MODEL_PATH = './model_pneumonia.pth'
 data_flag = 'pneumoniamnist'
-# data_flag = 'breastmnist'
-download = True
 
-NUM_EPOCHS = 30
-BATCH_SIZE = 128
-lr = 0.001
-
-info = INFO[data_flag]
-task = info['task']
-n_channels = info['n_channels']
-n_classes = len(info['label'])
-
-DataClass = getattr(medmnist, info['python_class'])
-
-# preprocessing
-data_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[.5], std=[.5])
-])
-
-# load the data
-train_dataset = DataClass(split='train', transform=data_transform, download=download)
-test_dataset = DataClass(split='test', transform=data_transform, download=download)
-
-pil_dataset = DataClass(split='train', download=download)
-
-# encapsulate data into dataloader form
-train_loader = data.DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-train_loader_at_eval = data.DataLoader(dataset=train_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
-test_loader = data.DataLoader(dataset=test_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
-
-print(train_dataset)
-print("===================")
-print(test_dataset)
-
-
-train_dataset.montage(length=1)
-
-train_dataset.montage(length=20)
-
-
-# define a simple CNN model
-
-class Net(nn.Module):
-    def __init__(self, in_channels, num_classes):
-        super(Net, self).__init__()
-
-        self.layer1 = nn.Sequential(
-            nn.Conv2d(in_channels, 16, kernel_size=3),
-            nn.BatchNorm2d(16),
-            nn.ReLU())
-
-        self.layer2 = nn.Sequential(
-            nn.Conv2d(16, 16, kernel_size=3),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2))
-
-        self.layer3 = nn.Sequential(
-            nn.Conv2d(16, 64, kernel_size=3),
-            nn.BatchNorm2d(64),
-            nn.ReLU())
-
-        self.layer4 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3),
-            nn.BatchNorm2d(64),
-            nn.ReLU())
-
-        self.layer5 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2))
-
-        self.fc = nn.Sequential(
-            nn.Linear(64 * 4 * 4, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, num_classes))
-
-    def forward(self, x):
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        x = self.layer5(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return x
-
-
-model = Net(in_channels=n_channels, num_classes=n_classes)
-
-# define loss function and optimizer
-if task == "multi-label, binary-class":
-    criterion = nn.BCEWithLogitsLoss()
-else:
-    criterion = nn.CrossEntropyLoss()
-
-optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-
-# train
-
-for epoch in range(NUM_EPOCHS):
-    train_correct = 0
-    train_total = 0
-    test_correct = 0
-    test_total = 0
-
-    model.train()
-    for inputs, targets in tqdm(train_loader):
-        # forward + backward + optimize
-        optimizer.zero_grad()
-        outputs = model(inputs)
-
-        if task == 'multi-label, binary-class':
-            targets = targets.to(torch.float32)
-            loss = criterion(outputs, targets)
-        else:
-            targets = targets.squeeze().long()
-            loss = criterion(outputs, targets)
-
-        loss.backward()
-        optimizer.step()
-
-
-# evaluation
-
-def test(split):
+def load_model(model_path):
+    model = ResNet50()
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.to(device)
     model.eval()
-    y_true = torch.tensor([])
-    y_score = torch.tensor([])
+    return model
 
-    data_loader = train_loader_at_eval if split == 'train' else test_loader
+
+def evaluate_model(model, split, test_loader):
+    model.eval()
+    y_true = torch.tensor([], device=device)
+    y_score = torch.tensor([], device=device)
 
     with torch.no_grad():
-        for inputs, targets in data_loader:
+        for inputs, labels in test_loader:
+            inputs = inputs.to(device)
             outputs = model(inputs)
 
-            if task == 'multi-label, binary-class':
-                targets = targets.to(torch.float32)
-                outputs = outputs.softmax(dim=-1)
-            else:
-                targets = targets.squeeze().long()
-                outputs = outputs.softmax(dim=-1)
-                targets = targets.float().resize_(len(targets), 1)
+            labels = labels.to(device=device, dtype=torch.float32)
+            outputs = torch.sigmoid(outputs)
 
-            y_true = torch.cat((y_true, targets), 0)
+            y_true = torch.cat((y_true, labels), 0)
             y_score = torch.cat((y_score, outputs), 0)
 
-        y_true = y_true.numpy()
-        y_score = y_score.detach().numpy()
+    y_true = y_true.cpu().numpy()
+    y_score = y_score.cpu().detach().numpy()
 
-        evaluator = Evaluator(data_flag, split)
-        metrics = evaluator.evaluate(y_score)
+    evaluator = medmnist.Evaluator(data_flag, split)
+    metrics = evaluator.evaluate(y_score)
 
-        print('%s  auc: %.3f  acc:%.3f' % (split, *metrics))
+    print(f'{split.capitalize()} - AUC: {metrics[0]:.3f}, Acc: {metrics[1]:.3f}')
+    return y_true, y_score
 
 
-print('==> Evaluating ...')
-test('train')
-test('test')
+def plot_confusion_matrix(y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+    sns.heatmap(cm, annot=True, fmt='g', cmap='Blues', xticklabels=['Normal', 'Pneumonia'], yticklabels=['Normal', 'Pneumonia'])
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.show()
+
+
+
+#def test_different_thresholds(model, test_loader):
+    #for threshold in np.arange(0.4, 0.6, 0.05):
+        #y_true, y_score = evaluate_model(model, 'split', test_loader)
+        # Apply the threshold and evaluate
+        #y_pred = (y_score > threshold).astype(int)
+        #print(f'Threshold: {threshold}')
+        #print(classification_report(y_true, y_pred, target_names=['Normal', 'Pneumonia']))
+
+
+def main():
+    _, _, test_loader = data(batch_size=64)
+    model = load_model(MODEL_PATH)
+
+    y_true, y_score= evaluate_model(model, 'test', test_loader)
+    y_pred = (y_score > 0.5).astype(int)
+
+    print(classification_report(y_true, y_pred, target_names=['Normal', 'Pneumonia']))
+    plot_confusion_matrix(y_true, y_pred)
+    #test_different_thresholds(model, test_loader)
+
+
+if __name__ == "__main__":
+    main()
+

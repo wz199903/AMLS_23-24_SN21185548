@@ -1,4 +1,5 @@
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchvision
@@ -7,7 +8,8 @@ from torchvision import datasets, models, transforms
 import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data as data
-
+from sklearn.metrics import confusion_matrix, classification_report
+import seaborn as sns
 
 import medmnist
 from medmnist import PneumoniaMNIST
@@ -20,7 +22,7 @@ data_flag = 'pneumoniamnist'
 download = True
 
 NUM_EPOCHS = 10
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 lr = 0.001
 
 info = INFO[data_flag]
@@ -41,7 +43,7 @@ train_dataset = DataClass(split='train', transform=transform, download=download)
 val_dataset = DataClass(split='val', transform=transform, download=download)
 test_dataset = DataClass(split='test', transform=transform, download=download)
 
-pil_dataset = DataClass(split='train', download=download)
+#pil_dataset = DataClass(split='train', download=download)
 
 # encapsulate data into dataloader form
 train_loader = data.DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True)
@@ -50,44 +52,47 @@ test_loader = data.DataLoader(dataset=test_dataset, batch_size=2*BATCH_SIZE, shu
 
 
 class ResNet50(nn.Module):
-    def __init__(self, n_channels, n_classes):
+    def __init__(self):
         super(ResNet50, self).__init__()
         self.model = models.resnet50(weights=None)
-        if n_channels == 1:
-            # Change the first convolutional layer to accept 1-channel input
-            self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         num_ftrs = self.model.fc.in_features
-        self.model.fc = nn.Linear(num_ftrs, 1)  # Binary classification
+        self.model.fc = nn.Linear(num_ftrs, 1)
 
     def forward(self, x):
         return self.model(x)
 
 
-model = ResNet50(n_channels=n_channels, n_classes=n_classes).to(device)
-
+model = ResNet50().to(device)
 criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.Adam(model.parameters(), lr=lr)
-
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
-def train_model(model, criterion, optimizer, scheduler, num_epochs):
+
+
+def train_model(model, criterion, optimizer, scheduler, num_epochs, train_loader, val_loader):
     model = model.to(device)
     best_acc = 0.0
 
+    train_losses, val_losses = [], []
+    train_accs, val_accs = [], []
+
     for epoch in range(num_epochs):
-        print(f'Epoch {epoch+1}/{num_epochs}')
+        print(f'\nEpoch {epoch+1}/{num_epochs}')
 
         for phase in ['train', 'val']:
             if phase == 'train':
                 model.train()
                 data_loader = train_loader
+                print("Training Phase")
             else:
                 model.eval()
                 data_loader = val_loader
+                print("Validation Phase")
 
             running_loss = 0.0
             running_corrects = 0
 
-            for inputs, labels in tqdm(data_loader):
+            for inputs, labels in data_loader:
                 inputs, labels = inputs.to(device), labels.to(device)
                 labels = labels.float()  # Convert labels to float
                 optimizer.zero_grad()
@@ -108,13 +113,23 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs):
 
             epoch_loss = running_loss / len(data_loader.dataset)
             epoch_acc = running_corrects.double() / len(data_loader.dataset)
+
+            if phase == 'train':
+                train_losses.append(epoch_loss)
+                train_accs.append(epoch_acc.item())
+            else:
+                val_losses.append(epoch_loss)
+                val_accs.append(epoch_acc.item())
+
             print(f'{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
 
-    return model
+    return model, train_losses, val_losses, train_accs, val_accs
 
-model = train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS)
 
-def test(model, split, task, data_loader):
+model, train_losses, val_losses, train_accs, val_accs = train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader, val_loader)
+
+
+def test(model, split, task):
     model.eval()
     y_true = torch.tensor([], device=device)
     y_score = torch.tensor([], device=device)
@@ -148,4 +163,59 @@ def test(model, split, task, data_loader):
 
 print('==> Evaluating ...')
 
-test(model, 'test', task, test_loader)
+test(model, 'test', task)
+
+
+def evaluate_with_threshold(model, loader, device):
+    model.eval()
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for inputs, labels in loader:
+            inputs = inputs.to(device)
+            outputs = model(inputs)
+            preds = torch.sigmoid(outputs) > threshold
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    cm = confusion_matrix(all_labels, all_preds)
+    report = classification_report(all_labels, all_preds, target_names=['Normal', 'Pneumonia'])
+
+    print(f"Threshold: {threshold}\n")
+    print(report)
+    plt.figure(figsize=(6, 6))
+    sns.heatmap(cm, annot=True, fmt='g', cmap='Blues', xticklabels=['Normal', 'Pneumonia'], yticklabels=['Normal', 'Pneumonia'])
+    plt.xlabel('Actual')
+    plt.ylabel('Predicted')
+    #plt.show()
+
+
+# Test with different thresholds
+for threshold in np.arange(0.4, 0.6, 0.05):
+    evaluate_with_threshold(model, test_loader, device)
+
+
+def plot_learning_curves(train_losses, val_losses, train_accs, val_accs):
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(train_losses, label='Training loss')
+    plt.plot(val_losses, label='Validation loss')
+    plt.title('Training and Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(train_accs, label='Training accuracy')
+    plt.plot(val_accs, label='Validation accuracy')
+    plt.title('Training and Validation Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.show()
+
+plot_learning_curves(train_losses, val_losses, train_accs, val_accs)
+
