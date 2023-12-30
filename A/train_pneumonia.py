@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import KFold
 
-NUM_EPOCHS = 30
-BATCH_SIZE = 32
-lr = 0.0005
+NUM_EPOCHS = 50
+BATCH_SIZE = 64
+lr = 0.001
 MODEL_SAVE_PATH = './model_pneumonia.pth'
 SCHEDULER_STEP_SIZE = 7
 SCHEDULER_GAMMA = 0.1
@@ -107,7 +107,7 @@ def main():
     train_loader, val_loader, _ = data(batch_size=BATCH_SIZE)
     model = ResNet50().to(device)
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=SCHEDULER_STEP_SIZE, gamma=SCHEDULER_GAMMA)
 
     trained_model, train_losses, train_accs, val_losses, val_accs = train_model(model, criterion, optimizer,scheduler, NUM_EPOCHS, train_loader,val_loader)

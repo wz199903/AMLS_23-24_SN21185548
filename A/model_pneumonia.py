@@ -6,7 +6,6 @@ import torch.nn.functional as F
 class ResNet50(nn.Module):
     def __init__(self):
         super(ResNet50, self).__init__()
-        # Considering the images are 28x28 and grayscale, input channels = 1.
         # Convolutional layers
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
@@ -15,8 +14,6 @@ class ResNet50(nn.Module):
         # Pooling layer
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        # Fully connected layers
-        # After three pooling layers, the image size will be reduced to 28 / 2 / 2 / 2 = 3.5, which rounds down to 3 pixels.
         self.fc1 = nn.Linear(in_features=64 * 3 * 3, out_features=128)
         self.fc2 = nn.Linear(in_features=128, out_features=1)
 
