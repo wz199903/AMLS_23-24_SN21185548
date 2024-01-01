@@ -50,13 +50,13 @@ def switch_pneumonia():
 def switch_path():
 
     def Bcv():
-        run(f"python {join(path_to_A, 'data_preprocessing_path.py')}")
+        run(f"python {join(path_to_B, 'data_preprocessing_path.py')}")
 
     def Btrain():
-        run(f"python {join(path_to_A, 'train_path.py')}")
+        run(f"python {join(path_to_B, 'train_path.py')}")
 
     def Btest():
-        run(f"python {join(path_to_A, 'evaluation_path.py')}")
+        run(f"python {join(path_to_B, 'evaluation_path.py')}")
 
     def Bdefault():
         print("Please enter a valid option.")

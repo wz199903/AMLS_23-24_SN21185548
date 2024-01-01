@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import roc_auc_score, accuracy_score
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MODEL_PATH = './model_path.pth'
+MODEL_PATH = 'B/model_path.pth'
 #MODEL_PATH = './pretrained_model_path.pth'
 BATCH_SIZE = 64
 
@@ -73,7 +73,7 @@ def main():
     Main function to load data, model, perform evaluation, and plot results
     :return:
     """
-    _, _, test_loader, _ = data(download_directory='../Datasets', batch_size=BATCH_SIZE)
+    _, _, test_loader, _ = data(download_directory='./Datasets', batch_size=BATCH_SIZE)
     model = load_model(MODEL_PATH)
     y_true, y_score, auc_scores, accuracy = evaluate_model(model, 'test', test_loader, num_classes=9)
     y_pred = np.argmax(y_score, axis=1)
