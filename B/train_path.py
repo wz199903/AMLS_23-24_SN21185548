@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from model_pneumonia import ResNet18, CNN
-from data_preprocessing_pneumonia import data, count_classes
+from model_path import ResNet18
+from data_preprocessing_path import data, count_classes
 import matplotlib.pyplot as plt
 import time
 import copy
@@ -11,12 +11,11 @@ import numpy as np
 
 # Hyperparameters
 NUM_EPOCHS = 40
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 LEARNING_RATE = 0.001
-MODEL_SAVE_PATH = './model_pneumonia.pth'
+MODEL_SAVE_PATH = './model_path.pth'
 SCHEDULER_STEP_SIZE = 7
 SCHEDULER_GAMMA = 0.1
-L1_LAMBDA = 1e-5
 
 # Set the device to GPU if available, otherwise CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -106,22 +105,24 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
 
             for inputs, labels in data_loader:
                 inputs, labels = inputs.to(device), labels.to(device)
-
+                labels = labels.squeeze(1).long()
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
-                    loss = criterion(outputs, labels.float().view_as(outputs))
-                    if phase == 'train':
-                        l1_norm = sum(p.abs().sum() for p in model.parameters())
-                        loss += L1_LAMBDA * l1_norm
+                    _, preds = torch.max(outputs, 1)
+                    #print(f"Outputs shape: {outputs.shape}, Labels shape: {labels.shape}")
+                    loss = criterion(outputs, labels)
 
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
 
                 running_loss += loss.item() * inputs.size(0)
-                running_corrects += torch.sum((outputs > 0) == labels.data)
+                running_corrects += torch.sum(preds == labels.data)
+
+            if phase == 'train':
+                scheduler.step()
 
             epoch_loss = running_loss / len(data_loader.dataset)
             epoch_acc = running_corrects.double() / len(data_loader.dataset)
@@ -140,16 +141,16 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
 
             if phase == 'val' and early_stop(epoch_loss, model):
                     print("\nEarly stopping triggered.")
+                    model.load_state_dict(best_model_wts)
                     time_elapsed = time.time() - since
                     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-                    model.load_state_dict(best_model_wts)
+                    print(f'Best val Acc: {best_acc:.4f}')
                     return model, train_losses, train_accs, val_losses, val_accs
-
-            if phase == 'train':
-                scheduler.step()
 
     time_elapsed = time.time() - since
     print('\nTraining complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    print(f'Best val Acc: {best_acc:.4f}')
+
     model.load_state_dict(best_model_wts)
 
     return model, train_losses, train_accs, val_losses, val_accs
@@ -197,15 +198,15 @@ def main():
     :return: Trained model and metrics (loss and accuracy) for training and validation phases.
     """
     train_loader, val_loader, _, (mean, std) = data(download_directory='../Datasets', batch_size=BATCH_SIZE)
-    normal_count, pneumonia_count = count_classes(train_loader)
-    total_count = 4708
+    #normal_count, pneumonia_count = count_classes(train_loader)
+    #total_count = 4708
     #class_weights = [total_count / normal_count, total_count / pneumonia_count]
-    class_weights = [0.55, 0.45]
-    weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
+    #class_weights = [0.55, 0.45]
+    #weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
 
     model = ResNet18().to(device)
 
-    criterion = nn.BCEWithLogitsLoss(pos_weight=weights[1])
+    criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=SCHEDULER_STEP_SIZE, gamma=SCHEDULER_GAMMA)
 

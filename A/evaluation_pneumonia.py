@@ -1,82 +1,90 @@
 import numpy as np
 import torch
-import torch.nn as nn
-from model_pneumonia import ResNet50
+from model_pneumonia import ResNet18
 from data_preprocessing_pneumonia import data
 from sklearn.metrics import confusion_matrix, classification_report
 import seaborn as sns
 import matplotlib.pyplot as plt
-import medmnist
-from medmnist import INFO, Evaluator
+from sklearn.metrics import roc_auc_score, accuracy_score
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL_PATH = './model_pneumonia.pth'
-data_flag = 'pneumoniamnist'
+#MODEL_PATH = './pretrained_model_pneumonia.pth'
+BATCH_SIZE = 64
+
 
 def load_model(model_path):
-    model = ResNet50()
+    """
+    Load the pretrained model
+    :param model_path: The file path where the pretrained model is.
+    :return: The loaded model
+    """
+    model = ResNet18()
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
-    model.eval()
     return model
 
 
 def evaluate_model(model, split, test_loader):
+    """
+    Evaluate the model using the provided test_loader.
+    :param model: The neural network model to evaluate.
+    :param split: The split type, typically 'test' in evaluation.
+    :param test_loader: The DataLoader for test data.
+    :return: Arrays of true labels and predicted scores
+    """
     model.eval()
-    y_true = torch.tensor([], device=device)
-    y_score = torch.tensor([], device=device)
+    y_true = []
+    y_scores = []
 
     with torch.no_grad():
         for inputs, labels in test_loader:
             inputs = inputs.to(device)
             outputs = model(inputs)
+            outputs = outputs.squeeze()
 
-            labels = labels.to(device=device, dtype=torch.float32)
-            outputs = torch.sigmoid(outputs)
+            y_true.extend(labels.cpu().numpy())
+            y_scores.extend(outputs.cpu().numpy())
 
-            y_true = torch.cat((y_true, labels), 0)
-            y_score = torch.cat((y_score, outputs), 0)
+    y_true = np.array(y_true)
+    y_scores = np.array(y_scores)
 
-    y_true = y_true.cpu().numpy()
-    y_score = y_score.cpu().detach().numpy()
+    auc_score = roc_auc_score(y_true, y_scores)
+    predictions = (y_scores > 0.5).astype(int)
+    accuracy = accuracy_score(y_true, predictions)
 
-    evaluator = medmnist.Evaluator(data_flag, split)
-    metrics = evaluator.evaluate(y_score)
-
-    print(f'{split.capitalize()} - AUC: {metrics[0]:.3f}, Acc: {metrics[1]:.3f}')
-    return y_true, y_score
+    print(f'{split.capitalize()} - AUC: {auc_score:.3f}, Acc: {accuracy:.3f}')
+    return y_true, y_scores, auc_score, accuracy
 
 
 def plot_confusion_matrix(y_true, y_pred):
+    """
+    Plot a confusion matrix using seaborn
+    :param y_true: Array of true labels
+    :param y_pred: Array of predicted labels
+    """
     cm = confusion_matrix(y_true, y_pred)
-    sns.heatmap(cm, annot=True, fmt='g', cmap='Blues', xticklabels=['Normal', 'Pneumonia'], yticklabels=['Normal', 'Pneumonia'])
+    sns.heatmap(cm, annot=True, fmt='g', cmap='Blues', xticklabels=['Normal', 'Pneumonia'], yticklabels=['Normal',
+                                                                                                         'Pneumonia'])
     plt.xlabel('Predicted')
-    plt.ylabel('True')
+    plt.ylabel('Actual')
     plt.show()
 
 
-
-#def test_different_thresholds(model, test_loader):
-    #for threshold in np.arange(0.4, 0.6, 0.05):
-        #y_true, y_score = evaluate_model(model, 'split', test_loader)
-        # Apply the threshold and evaluate
-        #y_pred = (y_score > threshold).astype(int)
-        #print(f'Threshold: {threshold}')
-        #print(classification_report(y_true, y_pred, target_names=['Normal', 'Pneumonia']))
-
-
 def main():
-    _, _, test_loader = data(batch_size=64)
+    """
+    Main function to load data, model, perform evaluation, and plot results
+    :return:
+    """
+    _, _, test_loader, _ = data(download_directory='../Datasets', batch_size=BATCH_SIZE)
     model = load_model(MODEL_PATH)
 
-    y_true, y_score= evaluate_model(model, 'test', test_loader)
+    y_true, y_score, auc_score, accuracy = evaluate_model(model, 'test', test_loader)
     y_pred = (y_score > 0.5).astype(int)
 
     print(classification_report(y_true, y_pred, target_names=['Normal', 'Pneumonia']))
     plot_confusion_matrix(y_true, y_pred)
-    #test_different_thresholds(model, test_loader)
 
 
 if __name__ == "__main__":
     main()
-

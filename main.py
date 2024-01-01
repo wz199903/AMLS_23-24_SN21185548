@@ -2,36 +2,41 @@ from os import system as run
 from os.path import join
 import sys
 
+path_to_A = 'A'
+path_to_B = 'B'
+
 # Import relevant files
 sys.path.insert(0, 'A')
-import xxx
-import xxx
-import xxx
-sys.path.insert(0, 'B')
-import xxx
-import xxx
-import xxx
+#from import model_pneumonia
+#import train_pneumonia
+#import evaluation_pneumonia
+#sys.path.insert(0, 'B')
+#import model_path
+#import train_path
+#import evaluation_path
 
 
 # Task A switch
 def switch_pneumonia():
     def Acv():
-        xxx.run()
+        run(f"python {join(path_to_A, 'data_preprocessing_pneumonia.py')}")
 
     def Atrain():
-        xxx_train.run()
+        run(f"python {join(path_to_A, 'train_pneumonia.py')}")
 
     def Atest():
-        xxx.run()
+        run(f"python {join(path_to_A, 'evaluation_pneumonia.py')}")
 
     def Adefault():
         print("Please enter a valid option.")
         switch_pneumonia()
 
     # User input
-    option = int(
-        input(
-            "Enter 1 cross-validation\nEnter 2 for model training\nEnter 3 for model testing:\n"))
+    try:
+        option = int(input("Enter 1 for cross-validation\nEnter 2 for model training\nEnter 3 for model testing: "))
+    except ValueError:
+        Adefault()
+        return
 
     switch_dict = {
         1: Acv,
@@ -45,13 +50,13 @@ def switch_pneumonia():
 def switch_path():
 
     def Bcv():
-        xxx.run()
+        run(f"python {join(path_to_A, 'data_preprocessing_path.py')}")
 
     def Btrain():
-        xxx.run()
+        run(f"python {join(path_to_A, 'train_path.py')}")
 
     def Btest():
-        xxx.run()
+        run(f"python {join(path_to_A, 'evaluation_path.py')}")
 
     def Bdefault():
         print("Please enter a valid option.")
@@ -60,7 +65,7 @@ def switch_path():
     # User input
     option = int(
         input(
-            "Enter 1 cross-validation\nEnter 2 for model training\nEnter 3 for model testing:\n"))
+            "Enter 1 cross-validation\nEnter 2 for model training\nEnter 3 for model testing: "))
 
     switch_dict = {
         1: Bcv,
@@ -74,33 +79,34 @@ def switch_path():
 # Main switch
 def switch_main():
     # Task A
-    def A():
-        PneumoniaMNIST()
+    def a():
+        switch_pneumonia()
 
     # Task B
-    def B():
-        PathMNIST()
+    def b():
+        switch_path()
 
     def default():
         print("Please enter a valid option.")
         switch_main()
 
     def quit_main():
-        quit()
+        sys.exit()
 
-    # User input
-    option = int(
-        input(
-            "Enter 1 for task A\nEnter 2 for task B\nEnter 3 to exit program:\n"))
+    try:
+        option = int(input("Enter 1 for task A\nEnter 2 for task B\nEnter 3 to exit program: "))
+    except ValueError:
+        default()
+        return
 
     switch_dict = {
-        1: PneumoniaMNIST,
-        2: PathMNIST,
+        1: a,
+        2: b,
         3: quit_main,
     }
 
     switch_dict.get(option, default)()
 
+
 # Call switch
 switch_main()
-quit()
