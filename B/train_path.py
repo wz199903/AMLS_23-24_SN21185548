@@ -11,7 +11,7 @@ import numpy as np
 
 # Hyperparameters
 NUM_EPOCHS = 40
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 LEARNING_RATE = 0.001
 MODEL_SAVE_PATH = './model_path.pth'
 SCHEDULER_STEP_SIZE = 7
