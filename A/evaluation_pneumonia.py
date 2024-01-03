@@ -2,15 +2,14 @@ import numpy as np
 import torch
 from model_pneumonia import ResNet18
 from data_preprocessing_pneumonia import data
-from sklearn.metrics import confusion_matrix, classification_report
 import seaborn as sns
+from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix, classification_report
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_auc_score, accuracy_score
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MODEL_PATH = './model_pneumonia.pth'
+MODEL_PATH = './model_pneumonia_38.pth'
 #MODEL_PATH = './pretrained_model_pneumonia.pth'
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 
 
 def load_model(model_path):
@@ -76,7 +75,7 @@ def main():
     Main function to load data, model, perform evaluation, and plot results
     :return:
     """
-    _, _, test_loader, _ = data(download_directory='../Datasets', batch_size=BATCH_SIZE)
+    _, _, test_loader, _ = data(dataset_directory='../Datasets', batch_size=BATCH_SIZE)
     model = load_model(MODEL_PATH)
 
     y_true, y_score, auc_score, accuracy = evaluate_model(model, 'test', test_loader)

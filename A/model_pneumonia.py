@@ -1,6 +1,6 @@
-import torch
 import torch.nn as nn
 import torchvision.models as models
+from torchvision.models import ResNet18_Weights
 import torch.nn.functional as F
 
 
@@ -65,15 +65,12 @@ class ResNet18(nn.Module):
     def __init__(self):
         super(ResNet18, self).__init__()
         self.model = models.resnet18(weights=None)
-        self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.model.bn1 = nn.BatchNorm2d(64)
-        self.model.relu = nn.ReLU(inplace=True)
-        self.model.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.dropout = nn.Dropout(p=0.5)
+        self.model.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.dropout = nn.Dropout(p=0.2)
         num_ftrs = self.model.fc.in_features
-        self.model.fc = nn.Sequential(
-            nn.Linear(num_ftrs, 1),
-        )
+        self.model.fc = nn.Sequential(nn.Linear(num_ftrs, 1))
+
+
 
     def forward(self, x):
         """
@@ -82,5 +79,6 @@ class ResNet18(nn.Module):
         :return: The output tensor after passing the network
         """
         x = self.model(x)
+
         return x
 

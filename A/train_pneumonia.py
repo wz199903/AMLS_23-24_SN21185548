@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from model_pneumonia import ResNet18, CNN
+from model_pneumonia import ResNet18
 from data_preprocessing_pneumonia import data, count_classes
 import matplotlib.pyplot as plt
 import time
@@ -10,13 +10,12 @@ import numpy as np
 
 
 # Hyperparameters
-NUM_EPOCHS = 40
+NUM_EPOCHS = 30
 BATCH_SIZE = 32
 LEARNING_RATE = 0.001
 MODEL_SAVE_PATH = './model_pneumonia.pth'
 SCHEDULER_STEP_SIZE = 7
 SCHEDULER_GAMMA = 0.1
-L1_LAMBDA = 1e-5
 
 # Set the device to GPU if available, otherwise CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -85,7 +84,7 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
     train_losses, val_losses = [], []
     train_accs, val_accs = [], []
 
-    early_stop = EarlyStopping(patience=10, delta=0.0005)
+    early_stop = EarlyStopping(patience=10, delta=0.001)
 
     for epoch in range(NUM_EPOCHS):
         print(f'\nEpoch {epoch+1}/{NUM_EPOCHS}')
@@ -112,9 +111,6 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     loss = criterion(outputs, labels.float().view_as(outputs))
-                    if phase == 'train':
-                        l1_norm = sum(p.abs().sum() for p in model.parameters())
-                        loss += L1_LAMBDA * l1_norm
 
                     if phase == 'train':
                         loss.backward()
@@ -196,11 +192,11 @@ def main():
     as well as saving the trained model to a local path.
     :return: Trained model and metrics (loss and accuracy) for training and validation phases.
     """
-    train_loader, val_loader, _, (mean, std) = data(download_directory='../Datasets', batch_size=BATCH_SIZE)
+    train_loader, val_loader, _, (mean, std) = data(dataset_directory='../Datasets', batch_size=BATCH_SIZE)
     normal_count, pneumonia_count = count_classes(train_loader)
     total_count = 4708
     #class_weights = [total_count / normal_count, total_count / pneumonia_count]
-    class_weights = [0.55, 0.45]
+    class_weights = [0.6, 0.4]
     weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
 
     model = ResNet18().to(device)

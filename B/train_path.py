@@ -1,21 +1,20 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from model_path import ResNet18
+import numpy as np
+from model_path import ResNet18, ResNet50
 from data_preprocessing_path import data, count_classes
-import matplotlib.pyplot as plt
 import time
 import copy
-import numpy as np
-
+import matplotlib.pyplot as plt
 
 # Hyperparameters
-NUM_EPOCHS = 40
+NUM_EPOCHS = 20
 BATCH_SIZE = 32
 LEARNING_RATE = 0.001
-MODEL_SAVE_PATH = './model_path.pth'
 SCHEDULER_STEP_SIZE = 7
 SCHEDULER_GAMMA = 0.1
+MODEL_SAVE_PATH = './model_path.pth'
 
 # Set the device to GPU if available, otherwise CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -140,12 +139,12 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
             print(f'{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
 
             if phase == 'val' and early_stop(epoch_loss, model):
-                    print("\nEarly stopping triggered.")
-                    model.load_state_dict(best_model_wts)
-                    time_elapsed = time.time() - since
-                    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-                    print(f'Best val Acc: {best_acc:.4f}')
-                    return model, train_losses, train_accs, val_losses, val_accs
+                print("\nEarly stopping triggered.")
+                model.load_state_dict(best_model_wts)
+                time_elapsed = time.time() - since
+                print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+                print(f'Best val Acc: {best_acc:.4f}')
+                return model, train_losses, train_accs, val_losses, val_accs
 
     time_elapsed = time.time() - since
     print('\nTraining complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
@@ -197,16 +196,36 @@ def main():
     as well as saving the trained model to a local path.
     :return: Trained model and metrics (loss and accuracy) for training and validation phases.
     """
-    train_loader, val_loader, _, (mean, std) = data(download_directory='../Datasets', batch_size=BATCH_SIZE)
+    train_loader, val_loader, _, _ = data(dataset_directory='../Datasets', batch_size=BATCH_SIZE)
     #normal_count, pneumonia_count = count_classes(train_loader)
     #total_count = 4708
     #class_weights = [total_count / normal_count, total_count / pneumonia_count]
     #class_weights = [0.55, 0.45]
     #weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
 
-    model = ResNet18().to(device)
+    model = ResNet50().to(device)
+    performance_metrics = {
+        0: {'recall': 0.97},
+        1: {'recall': 1.00},
+        2: {'recall': 0.77},
+        3: {'recall': 0.95},
+        4: {'recall': 0.81},
+        5: {'recall': 0.62},
+        6: {'recall': 0.77},
+        7: {'recall': 0.45},
+        8: {'recall': 0.92},
+    }
+    inverse_recall = [1.0 - performance_metrics[i]['recall'] for i in range(len(performance_metrics))]
 
-    criterion = nn.CrossEntropyLoss()
+    # Optional: Normalize the weights so the maximum is 1
+    max_weight = max(inverse_recall)
+    weights = [weight / max_weight for weight in inverse_recall]
+
+    # Convert to tensor
+    #class_weights = [0.6, 0.6, 0.7, 0.9, 0.6, 0.8, 0.4, 0.3, 0.2]
+    weights = torch.tensor(weights, dtype=torch.float32).to(device)
+
+    criterion = nn.CrossEntropyLoss(weight=weights)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=SCHEDULER_STEP_SIZE, gamma=SCHEDULER_GAMMA)
 
