@@ -21,7 +21,7 @@ class PathMNIST(Dataset):
                  transform=None,
                  target_transform=None,
                  as_rgb=False,
-                 download=False):
+                 ):
         ''' dataset
         :param split: 'train', 'val' or 'test', select subset
         :param transform: data transformation
@@ -128,23 +128,16 @@ def calculate_dataset_statistics(dataset, sample_size=1000):
     return mean.numpy(), std.numpy()
 
 
-def get_sampler_weights(dataset, performance_metrics=None):
+def get_sampler_weights(dataset):
     """
     Calculate weights for each sample in the dataset to address class imbalance
     :param dataset: Dataset to calculate weights for
-    :param performance_metrics: A dictionary with class indices as keys and performance as values
     :return: Tuple containing the weights for each sample
     """
     class_sample_counts = np.array([np.sum(dataset.label == i) for i in range(len(np.unique(dataset.label)))])
     class_weights = 1. / np.maximum(class_sample_counts, 1)
-    for class_index in np.unique(dataset.label):
-        if class_index in performance_metrics:
-            recall = performance_metrics[class_index]['recall']
-            class_weights[class_index] *= 1 / (recall + 0.1)
-
     weights = np.take(class_weights, dataset.label).flatten()
     return torch.DoubleTensor(weights)
-
 
 def load_and_preprocess_data(dataset_directory, split_type, mean, std, is_train=True):
     """
@@ -157,7 +150,6 @@ def load_and_preprocess_data(dataset_directory, split_type, mean, std, is_train=
     :return: Dataset with transformation
     """
     transform_list = [
-        transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=mean, std=std)
     ]
@@ -168,7 +160,7 @@ def load_and_preprocess_data(dataset_directory, split_type, mean, std, is_train=
 
     transform = transforms.Compose(transform_list)
 
-    data = PathMNIST(root=dataset_directory, split=split_type, download=True, transform=transform)
+    data = PathMNIST(root=dataset_directory, split=split_type, transform=transform)
     return data
 
 
@@ -180,24 +172,13 @@ def create_data_loaders(data, batch_size, is_train=True):
     :param is_train: Flag to indicate if the DataLoader is for training
     :return: DataLoader for the provided dataset
     """
-    performance_metrics = {
-        0: {'recall': 0.97},
-        1: {'recall': 1.00},
-        2: {'recall': 0.77},
-        3: {'recall': 0.95},
-        4: {'recall': 0.81},
-        5: {'recall': 0.62},
-        6: {'recall': 0.77},
-        7: {'recall': 0.45},
-        8: {'recall': 0.92},
-    }
-
     if is_train:
-        weights = get_sampler_weights(data, performance_metrics)
+        #weights = get_sampler_weights(data, performance_metrics)
+        weights = get_sampler_weights(data)
         sampler = WeightedRandomSampler(weights, len(weights), replacement=True)
-        data_loader = DataLoader(data, batch_size=batch_size, sampler=sampler, num_workers=4, pin_memory=True)
+        data_loader = DataLoader(data, batch_size=batch_size, sampler=sampler, pin_memory=True)
     else:
-        data_loader = DataLoader(data, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+        data_loader = DataLoader(data, batch_size=batch_size, shuffle=False, pin_memory=True)
 
     return data_loader
 
@@ -210,8 +191,7 @@ def data(dataset_directory, batch_size):
     :return: Tuple containing DataLoaders and dataset statistics (mean, std).
     """
     try:
-        train_dataset = PathMNIST(root=dataset_directory, split='train', download=True,
-                                  transform=transforms.ToTensor())
+        train_dataset = PathMNIST(root=dataset_directory, split='train', transform=transforms.ToTensor())
         mean, std = calculate_dataset_statistics(train_dataset)
         print("Mean:", mean)
         print("Standard Deviation:", std)

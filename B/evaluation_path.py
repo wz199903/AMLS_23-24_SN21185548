@@ -1,13 +1,13 @@
 import numpy as np
 import torch
-from model_path import ResNet18, ResNet50
+from model_path import ResNet18, EfficientNet_V2, PathCNN
 from data_preprocessing_path import data
 import seaborn as sns
 from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix, classification_report
 import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MODEL_PATH = './model_path.pth'
+MODEL_PATH = './model_path_str.pth'
 #MODEL_PATH = './pretrained_model_path.pth'
 BATCH_SIZE = 64
 
@@ -18,7 +18,8 @@ def load_model(model_path):
     :param model_path: The file path where the pretrained model is.
     :return: The loaded model
     """
-    model = ResNet50()
+    model = PathCNN(input_shape=3, hidden_units=16, output_shape=9)
+    #model = EfficientNet_V2()
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     return model

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import time
 import copy
 import numpy as np
-
+from tqdm import tqdm
 
 # Hyperparameters
 NUM_EPOCHS = 30
@@ -94,16 +94,17 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
             if phase == 'train':
                 model.train()
                 data_loader = train_loader
-                print("Training Phase")
+                phase_desc = "Training Phase"
             else:
                 model.eval()
                 data_loader = val_loader
-                print("Validation Phase")
+                phase_desc = "Validation Phase"
 
             running_loss = 0.0
             running_corrects = 0
 
-            for inputs, labels in data_loader:
+            progress_bar = tqdm(data_loader, desc=f"{phase_desc} Progress", leave=True)
+            for inputs, labels in progress_bar:
                 inputs, labels = inputs.to(device), labels.to(device)
 
                 optimizer.zero_grad()
@@ -132,7 +133,7 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
                     best_acc = epoch_acc
                     best_model_wts = copy.deepcopy(model.state_dict())
 
-            print(f'{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+            print(f'\n{phase_desc} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
 
             if phase == 'val' and early_stop(epoch_loss, model):
                     print("\nEarly stopping triggered.")

@@ -2,15 +2,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from model_path import ResNet18, ResNet50
+from model_path import ResNet18, EfficientNet_V2, PathCNN
 from data_preprocessing_path import data, count_classes
 import time
 import copy
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 # Hyperparameters
-NUM_EPOCHS = 20
-BATCH_SIZE = 32
+NUM_EPOCHS = 40
+BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 SCHEDULER_STEP_SIZE = 7
 SCHEDULER_GAMMA = 0.1
@@ -83,7 +84,7 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
     train_losses, val_losses = [], []
     train_accs, val_accs = [], []
 
-    early_stop = EarlyStopping(patience=10, delta=0.0005)
+    early_stop = EarlyStopping(patience=7, delta=0.0005)
 
     for epoch in range(NUM_EPOCHS):
         print(f'\nEpoch {epoch+1}/{NUM_EPOCHS}')
@@ -93,17 +94,18 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
             if phase == 'train':
                 model.train()
                 data_loader = train_loader
-                print("Training Phase")
+                phase_desc = "Training"
             else:
                 model.eval()
                 data_loader = val_loader
-                print("Validation Phase")
+                phase_desc = "Validation"
 
             running_loss = 0.0
             running_corrects = 0
 
-            for inputs, labels in data_loader:
-                inputs, labels = inputs.to(device), labels.to(device)
+            progress_bar = tqdm(data_loader, desc=f"{phase_desc} Progress", leave=True)
+            for inputs, labels in progress_bar:
+                inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
                 labels = labels.squeeze(1).long()
                 optimizer.zero_grad()
 
@@ -136,7 +138,7 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
                     best_acc = epoch_acc
                     best_model_wts = copy.deepcopy(model.state_dict())
 
-            print(f'{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+            print(f'\n{phase_desc} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
 
             if phase == 'val' and early_stop(epoch_loss, model):
                 print("\nEarly stopping triggered.")
@@ -197,35 +199,11 @@ def main():
     :return: Trained model and metrics (loss and accuracy) for training and validation phases.
     """
     train_loader, val_loader, _, _ = data(dataset_directory='../Datasets', batch_size=BATCH_SIZE)
-    #normal_count, pneumonia_count = count_classes(train_loader)
-    #total_count = 4708
-    #class_weights = [total_count / normal_count, total_count / pneumonia_count]
-    #class_weights = [0.55, 0.45]
-    #weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
 
-    model = ResNet50().to(device)
-    performance_metrics = {
-        0: {'recall': 0.97},
-        1: {'recall': 1.00},
-        2: {'recall': 0.77},
-        3: {'recall': 0.95},
-        4: {'recall': 0.81},
-        5: {'recall': 0.62},
-        6: {'recall': 0.77},
-        7: {'recall': 0.45},
-        8: {'recall': 0.92},
-    }
-    inverse_recall = [1.0 - performance_metrics[i]['recall'] for i in range(len(performance_metrics))]
+    model=ResNet18().to(device)
+    #model = PathCNN(input_shape=3, hidden_units=16, output_shape=9).to(device, non_blocking=True)
 
-    # Optional: Normalize the weights so the maximum is 1
-    max_weight = max(inverse_recall)
-    weights = [weight / max_weight for weight in inverse_recall]
-
-    # Convert to tensor
-    #class_weights = [0.6, 0.6, 0.7, 0.9, 0.6, 0.8, 0.4, 0.3, 0.2]
-    weights = torch.tensor(weights, dtype=torch.float32).to(device)
-
-    criterion = nn.CrossEntropyLoss(weight=weights)
+    criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=SCHEDULER_STEP_SIZE, gamma=SCHEDULER_GAMMA)
 
