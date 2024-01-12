@@ -66,7 +66,6 @@ pip install -r requirements.txt
 ```
 * Paste pneumoniamnist.npz and pathmnist.npz files into Datasets folder
 * Pre-trained models can be accessed at: https://drive.google.com/drive/folders/1tBu78HDPohnKhHxqT-NAbTC3Sqlcp2jX?usp=drive_link.
-
 * Please download and paste them into folders as appropriate.
 
 ### Executing program
