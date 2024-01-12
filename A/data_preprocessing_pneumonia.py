@@ -1,18 +1,18 @@
 import os
+import numpy as np
 from PIL import Image
 import torch
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
-import numpy as np
 from info import INFO
 
 batch_size = 64
+dataset_directory = './Datasets'
 
 
 class PneumoniaMNIST(Dataset):
     """
-
-    Adapted from MedMNIST github repository
+    Adapted from MedMNIST GitHub repository and further modified for this task
     """
     flag = "pneumoniamnist"
 
@@ -21,13 +21,12 @@ class PneumoniaMNIST(Dataset):
                  split='train',
                  transform=None,
                  target_transform=None,
-                 download=False):
-        ''' dataset
+                 ):
+        """ dataset
         :param split: 'train', 'val' or 'test', select subset
         :param transform: data transformation
         :param target_transform: target transformation
-
-        '''
+        """
 
         self.info = INFO[self.flag]
         self.root = root
@@ -71,11 +70,10 @@ class PneumoniaMNIST(Dataset):
         return self.img.shape[0]
 
     def __repr__(self):
-        '''Adapted from torchvision.
-        '''
+        # Adapted from torchvision.
+
         _repr_indent = 4
         head = "Dataset " + self.__class__.__name__
-
         body = ["Number of datapoints: {}".format(self.__len__())]
         body.append("Root location: {}".format(self.root))
         body.append("Split: {}".format(self.split))
@@ -106,7 +104,7 @@ def count_classes(loader):
     return normal_count, pneumonia_count
 
 
-def calculate_dataset_statistics(dataset):
+def dataset_statistics(dataset):
     """
     Calculate the mean and standard deviation across the dataset to normalise the dataset
     :param dataset: Data set to compute statistics on
@@ -129,11 +127,12 @@ def calculate_dataset_statistics(dataset):
     return mean.numpy(), std.numpy()
 
 
-def get_sampler_weights(dataset, class_performance):
+def sampler_weights(dataset, class_performance):
     """
     Calculate weights for each sample in the dataset to address class imbalance
     :param dataset: Dataset to calculate weights for
-    :param class_performance: A dictionary with class indices as keys and another dictionary with performance metrics as values
+    :param class_performance: A dictionary with class indices as keys and another dictionary
+                              with performance metrics as values
     :return: Tuple containing the weights for each sample
     """
     class_sample_counts = np.array([np.sum(dataset.label == i) for i in np.unique(dataset.label)])
@@ -164,13 +163,14 @@ def load_and_preprocess_data(dataset_directory, split_type, mean, std, is_train=
         transforms.Normalize(mean=mean, std=std)
     ]
 
+    # Apply additional augmentations for training data
     if is_train:
         transform_list.insert(1, transforms.RandomRotation(degrees=(-5, 5)))
         transform_list.insert(2, transforms.ColorJitter(contrast=0.1))
 
     transform = transforms.Compose(transform_list)
 
-    data = PneumoniaMNIST(root=dataset_directory, split=split_type, download=False, transform=transform)
+    data = PneumoniaMNIST(root=dataset_directory, split=split_type, transform=transform)
     return data
 
 
@@ -187,7 +187,7 @@ def create_data_loaders(data, batch_size, is_train=True):
         1: {'recall': 0.99},
     }
     if is_train:
-        weights = get_sampler_weights(data, class_performance)
+        weights = sampler_weights(data, class_performance)
         sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
         data_loader = DataLoader(data, batch_size=batch_size, sampler=sampler)
     else:
@@ -196,7 +196,7 @@ def create_data_loaders(data, batch_size, is_train=True):
     return data_loader
 
 
-def data(dataset_directory, batch_size):
+def load_data(dataset_directory, batch_size):
     """
     Main function to handle data loading and preprocessing
     :param dataset_directory: Directory to download the data
@@ -204,9 +204,8 @@ def data(dataset_directory, batch_size):
     :return: Tuple containing DataLoaders and dataset statistics (mean, std).
     """
     try:
-        train_dataset = PneumoniaMNIST(root=dataset_directory, split='train', download=False,
-                                       transform=transforms.ToTensor())
-        mean, std = calculate_dataset_statistics(train_dataset)
+        train_dataset = PneumoniaMNIST(root=dataset_directory, split='train', transform=transforms.ToTensor())
+        mean, std = dataset_statistics(train_dataset)
         print("Mean:", mean)
         print("Standard Deviation:", std)
         train_dataset = load_and_preprocess_data(dataset_directory, 'train', mean, std, is_train=True)
@@ -217,11 +216,6 @@ def data(dataset_directory, batch_size):
         val_loader = create_data_loaders(val_dataset, batch_size=batch_size, is_train=False)
         test_loader = create_data_loaders(test_dataset, batch_size=batch_size, is_train=False)
 
-        print(train_dataset)
-        #print("="*50)
-        #print(val_dataset)
-        #print("="*50)
-        #print(test_dataset)
         return train_loader, val_loader, test_loader, (mean, std)
     except Exception as e:
         print(f"An error occurred in the data function: {e}")
@@ -229,10 +223,8 @@ def data(dataset_directory, batch_size):
 
 
 def main():
-    dataset_directory = '../Datasets'
-    mean, std = [0.5], [0.5]
     try:
-        train_loader, val_loader, test_loader, (mean, std) = data(dataset_directory, batch_size)
+        train_loader, val_loader, test_loader, (mean, std) = load_data(dataset_directory, batch_size)
         train_normal_count, train_pneumonia_count = count_classes(train_loader)
         print(f"Normal samples in training set: {train_normal_count}")
         print(f"Pneumonia samples in training set: {train_pneumonia_count}")

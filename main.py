@@ -1,31 +1,17 @@
 from os import system as run
-from os.path import join
 import sys
-
-path_to_A = 'A'
-path_to_B = 'B'
-
-# Import relevant files
-sys.path.insert(0, 'A')
-#from import model_pneumonia
-#import train_pneumonia
-#import evaluation_pneumonia
-#sys.path.insert(0, 'B')
-#import model_path
-#import train_path
-#import evaluation_path
 
 
 # Task A switch
 def switch_pneumonia():
-    def Acv():
-        run(f"python {join(path_to_A, 'data_preprocessing_pneumonia.py')}")
+    def Adata():
+        run(f"python {'A/data_preprocessing_pneumonia.py'}")
 
     def Atrain():
-        run(f"python {join(path_to_A, 'train_pneumonia.py')}")
+        run(f"python {'A/train_pneumonia.py'}")
 
     def Atest():
-        run(f"python {join(path_to_A, 'evaluation_pneumonia.py')}")
+        run(f"python {'A/evaluation_pneumonia.py'}")
 
     def Adefault():
         print("Please enter a valid option.")
@@ -33,30 +19,35 @@ def switch_pneumonia():
 
     # User input
     try:
-        option = int(input("Enter 1 for cross-validation\nEnter 2 for model training\nEnter 3 for model testing: "))
+        option = int(input("Enter 1 for data preprocessing and balance class occurrence\nEnter 2 for model training\n"
+                           "Enter 3 for model testing: "))
     except ValueError:
         Adefault()
         return
 
     switch_dict = {
-        1: Acv,
+        1: Adata,
         2: Atrain,
         3: Atest,
     }
 
     switch_dict.get(option, Adefault)()
 
+
 # Task B switch
 def switch_path():
 
-    def Bcv():
-        run(f"python {join(path_to_B, 'data_preprocessing_path.py')}")
+    def Bdata():
+        run(f"python {'B/data_preprocessing_path.py'}")
 
-    def Btrain():
-        run(f"python {join(path_to_B, 'train_path.py')}")
+    def Bbase_train():
+        run(f"python {'B/train_path.py'}")
+
+    def Bspecialised_train():
+        run(f"python {'B/specialised_path.py'}")
 
     def Btest():
-        run(f"python {join(path_to_B, 'evaluation_path.py')}")
+        run(f"python {'B/evaluation_path.py'}")
 
     def Bdefault():
         print("Please enter a valid option.")
@@ -65,12 +56,14 @@ def switch_path():
     # User input
     option = int(
         input(
-            "Enter 1 cross-validation\nEnter 2 for model training\nEnter 3 for model testing: "))
+            "Enter 1 for data preprocessing and balance class occurrence\nEnter 2 for base model training\n"
+            "Enter 3 for specialised model training\nEnter 4 for model testing: "))
 
     switch_dict = {
-        1: Bcv,
-        2: Btrain,
-        3: Btest,
+        1: Bdata,
+        2: Bbase_train,
+        3: Bspecialised_train,
+        4: Btest,
     }
 
     switch_dict.get(option, Bdefault)()

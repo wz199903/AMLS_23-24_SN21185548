@@ -1,4 +1,4 @@
-# Adapted from MedMNIST github repository
+# Adapted from MedMNIST GitHub repository
 
 
 __version__ = "2.2.3"

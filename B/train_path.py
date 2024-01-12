@@ -2,23 +2,24 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from model_path import ResNet18, EfficientNet_V2, PathCNN
-from data_preprocessing_path import data, count_classes
+from tqdm import tqdm
 import time
+from model_path import ResNet18, ResNet50
+from data_preprocessing_path import load_data
 import copy
 import matplotlib.pyplot as plt
-from tqdm import tqdm
+
+# Set the device to GPU if available, otherwise CPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 # Hyperparameters
-NUM_EPOCHS = 40
+NUM_EPOCHS = 30
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 SCHEDULER_STEP_SIZE = 7
 SCHEDULER_GAMMA = 0.1
-MODEL_SAVE_PATH = './model_path.pth'
-
-# Set the device to GPU if available, otherwise CPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+MODEL_SAVE_PATH = 'B/model_path.pth'
 
 
 class EarlyStopping:
@@ -65,18 +66,7 @@ class EarlyStopping:
         return self.early_stop
 
 
-def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader, val_loader):
-    """
-    Train the model and evaluate it on the validation set
-    :param model: The neural network to train
-    :param criterion: The loss function to use
-    :param optimizer: The optimizer to use
-    :param scheduler: Learning rate scheduler
-    :param NUM_EPOCHS: The number of epochs to train for
-    :param train_loader: DataLoader for the training set
-    :param val_loader: DataLoader for the validation set
-    :return: Trained model and metrics (loss and accuracy) for training and validation phases
-    """
+def train_and_validate_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader, val_loader):
     since = time.time()
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
@@ -84,37 +74,38 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
     train_losses, val_losses = [], []
     train_accs, val_accs = [], []
 
-    early_stop = EarlyStopping(patience=7, delta=0.0005)
+    early_stop = EarlyStopping(patience=5, delta=0.001)
 
     for epoch in range(NUM_EPOCHS):
         print(f'\nEpoch {epoch+1}/{NUM_EPOCHS}')
         print('=' * 15)
 
+        # Iterate over phases: train and validate
         for phase in ['train', 'val']:
             if phase == 'train':
                 model.train()
                 data_loader = train_loader
-                phase_desc = "Training"
+                phase_desc = "Training Phase"
             else:
                 model.eval()
                 data_loader = val_loader
-                phase_desc = "Validation"
+                phase_desc = "Validation Phase"
 
             running_loss = 0.0
             running_corrects = 0
 
-            progress_bar = tqdm(data_loader, desc=f"{phase_desc} Progress", leave=True)
-            for inputs, labels in progress_bar:
-                inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
-                labels = labels.squeeze(1).long()
+            for inputs, labels in tqdm(data_loader, desc=f"{phase_desc} Progress"):
+                inputs = inputs.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True).squeeze(1).long()
                 optimizer.zero_grad()
 
+                # Forward pass
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     _, preds = torch.max(outputs, 1)
-                    #print(f"Outputs shape: {outputs.shape}, Labels shape: {labels.shape}")
                     loss = criterion(outputs, labels)
 
+                    # Backward pass and optimise in training phase
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
@@ -122,15 +113,13 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
 
-            if phase == 'train':
-                scheduler.step()
-
             epoch_loss = running_loss / len(data_loader.dataset)
             epoch_acc = running_corrects.double() / len(data_loader.dataset)
 
             if phase == 'train':
                 train_losses.append(epoch_loss)
                 train_accs.append(epoch_acc.item())
+                scheduler.step()
             else:
                 val_losses.append(epoch_loss)
                 val_accs.append(epoch_acc)
@@ -138,20 +127,17 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
                     best_acc = epoch_acc
                     best_model_wts = copy.deepcopy(model.state_dict())
 
-            print(f'\n{phase_desc} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+            print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
 
-            if phase == 'val' and early_stop(epoch_loss, model):
-                print("\nEarly stopping triggered.")
-                model.load_state_dict(best_model_wts)
-                time_elapsed = time.time() - since
-                print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-                print(f'Best val Acc: {best_acc:.4f}')
-                return model, train_losses, train_accs, val_losses, val_accs
+        if early_stop(epoch_loss, model) and phase == 'val':
+            print("\nEarly stopping triggered.")
+            break
 
     time_elapsed = time.time() - since
     print('\nTraining complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print(f'Best val Acc: {best_acc:.4f}')
 
+    # Load best model weights
     model.load_state_dict(best_model_wts)
 
     return model, train_losses, train_accs, val_losses, val_accs
@@ -198,17 +184,36 @@ def main():
     as well as saving the trained model to a local path.
     :return: Trained model and metrics (loss and accuracy) for training and validation phases.
     """
-    train_loader, val_loader, _, _ = data(dataset_directory='../Datasets', batch_size=BATCH_SIZE)
+    print("Select the model architecture to train:")
+    print("1: ResNet18")
+    print("2: ResNet50")
+    try:
+        model_choice = int(input("Enter your choice (1 or 2): "))
+        if model_choice == 1:
+            model_instance = ResNet18().to(device, non_blocking=True)
+        elif model_choice == 2:
+            model_instance = ResNet50().to(device, non_blocking=True)
+        else:
+            print("Invalid choice. Defaulting to ResNet18.")
+            model_instance = ResNet18().to(device, non_blocking=True)
+    except ValueError:
+        print("Invalid input. Defaulting to ResNet18.")
+        model_instance = ResNet18().to(device, non_blocking=True)
+    train_loader, val_loader, _, _ = load_data(dataset_directory='./Datasets', batch_size=BATCH_SIZE)
 
-    model=ResNet18().to(device)
-    #model = PathCNN(input_shape=3, hidden_units=16, output_shape=9).to(device, non_blocking=True)
-
+    # Define the loss criterion and the optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = optim.Adam(model_instance.parameters(), lr=LEARNING_RATE)
+
+    # Scheduler for adjusting the learning rate
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=SCHEDULER_STEP_SIZE, gamma=SCHEDULER_GAMMA)
 
-    trained_model, train_losses, train_accs, val_losses, val_accs = train_model(model, criterion, optimizer, scheduler,
-                                                                                NUM_EPOCHS, train_loader, val_loader)
+    trained_model, train_losses, train_accs, val_losses, val_accs = train_and_validate_model(model_instance, criterion,
+                                                                                             optimizer, scheduler,
+                                                                                             NUM_EPOCHS, train_loader,
+                                                                                             val_loader)
+
+    # Save the best model's state to a file
     torch.save(trained_model.state_dict(), MODEL_SAVE_PATH)
     print(f"Model saved to {MODEL_SAVE_PATH}.")
 

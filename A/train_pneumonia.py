@@ -2,23 +2,24 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from model_pneumonia import ResNet18
-from data_preprocessing_pneumonia import data, count_classes
+from data_preprocessing_pneumonia import load_data
 import matplotlib.pyplot as plt
 import time
 import copy
 import numpy as np
 from tqdm import tqdm
 
+# Set the device to GPU if available, otherwise CPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
 # Hyperparameters
 NUM_EPOCHS = 30
 BATCH_SIZE = 32
 LEARNING_RATE = 0.001
-MODEL_SAVE_PATH = './model_pneumonia.pth'
+MODEL_SAVE_PATH = 'A/model_pneumonia.pth'
 SCHEDULER_STEP_SIZE = 7
 SCHEDULER_GAMMA = 0.1
-
-# Set the device to GPU if available, otherwise CPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class EarlyStopping:
@@ -84,12 +85,13 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
     train_losses, val_losses = [], []
     train_accs, val_accs = [], []
 
-    early_stop = EarlyStopping(patience=10, delta=0.001)
+    early_stop = EarlyStopping(patience=5, delta=0.001)
 
     for epoch in range(NUM_EPOCHS):
         print(f'\nEpoch {epoch+1}/{NUM_EPOCHS}')
         print('=' * 15)
 
+        # Iterate over phases: train and validate
         for phase in ['train', 'val']:
             if phase == 'train':
                 model.train()
@@ -103,16 +105,18 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
             running_loss = 0.0
             running_corrects = 0
 
-            progress_bar = tqdm(data_loader, desc=f"{phase_desc} Progress", leave=True)
+            progress_bar = tqdm(data_loader, desc=f"{phase_desc} Progress")
             for inputs, labels in progress_bar:
                 inputs, labels = inputs.to(device), labels.to(device)
 
                 optimizer.zero_grad()
 
+                # Forward pass
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     loss = criterion(outputs, labels.float().view_as(outputs))
 
+                    # Backward pass and optimise in training phase
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
@@ -126,9 +130,11 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
             if phase == 'train':
                 train_losses.append(epoch_loss)
                 train_accs.append(epoch_acc.item())
+                scheduler.step()
+
             else:
                 val_losses.append(epoch_loss)
-                val_accs.append(epoch_acc)
+                val_accs.append(epoch_acc.item())
                 if epoch_acc > best_acc:
                     best_acc = epoch_acc
                     best_model_wts = copy.deepcopy(model.state_dict())
@@ -136,17 +142,16 @@ def train_model(model, criterion, optimizer, scheduler, NUM_EPOCHS, train_loader
             print(f'\n{phase_desc} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
 
             if phase == 'val' and early_stop(epoch_loss, model):
-                    print("\nEarly stopping triggered.")
-                    time_elapsed = time.time() - since
-                    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-                    model.load_state_dict(best_model_wts)
-                    return model, train_losses, train_accs, val_losses, val_accs
-
-            if phase == 'train':
-                scheduler.step()
+                print("\nEarly stopping triggered.")
+                time_elapsed = time.time() - since
+                print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+                model.load_state_dict(best_model_wts)
+                return model, train_losses, train_accs, val_losses, val_accs
 
     time_elapsed = time.time() - since
     print('\nTraining complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+    # Load best model weights
     model.load_state_dict(best_model_wts)
 
     return model, train_losses, train_accs, val_losses, val_accs
@@ -193,10 +198,9 @@ def main():
     as well as saving the trained model to a local path.
     :return: Trained model and metrics (loss and accuracy) for training and validation phases.
     """
-    train_loader, val_loader, _, (mean, std) = data(dataset_directory='../Datasets', batch_size=BATCH_SIZE)
-    normal_count, pneumonia_count = count_classes(train_loader)
-    total_count = 4708
-    #class_weights = [total_count / normal_count, total_count / pneumonia_count]
+    train_loader, val_loader, _, (mean, std) = load_data(dataset_directory='./Datasets', batch_size=BATCH_SIZE)
+
+    # Empirical weight selection
     class_weights = [0.6, 0.4]
     weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
 
