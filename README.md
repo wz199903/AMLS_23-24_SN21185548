@@ -35,16 +35,16 @@ Below is the file structure and descriptions for the project:
 | File                       | Description                                               |
 |----------------------------|-----------------------------------------------------------|
 | data_preprocessing_path.py | Script for preprocessing PathMNIST dataset                |
-| evaluation_pneumonia.py    | Script for evaluating the PathMNIST models                |
+| evaluation_path.py         | Script for evaluating the PathMNIST models                |
 | info.py                    | Information for PathMNIST dataset                         |
-| model_pneumonia.py         | Pneumonia model definitions                               |
-| specialised_pneumonia.py   | Training script for class BACK, MUS, and STR of PathMNIST |
-| train_pneumonia.py         | Training script for PathMNISTmodels                       |
+| model_path.py              | PathMNIST model definitions                               |
+| specialised_path.py        | Training script for class BACK, MUS, and STR of PathMNIST |
+| train_path.py              | Training script for PathMNIST models                      |
 
 ## Getting Started
 
 ### Dependencies
-The project was developed in Python 3.10.13 with the following packages. 
+The project was developed in Python 3.10.13. 
 The project has been tested to work well with requirements.txt.
 If you encounter difficulties when compiling the files, please see the specific versions of each library as follows:
 
