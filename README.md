@@ -18,7 +18,7 @@ This repository contains all the necessary scripts and instructions to preproces
 Below is the file structure and descriptions for the project:
 
 - Folder A contains python files for preprocessing PneumoniaMNIST, training model, and evaluating model.
-- Folder B contains python files for preprocessing PneumoniaMNIST, training base model and specialised model, and evaluating model.
+- Folder B contains python files for preprocessing PathMNIST, training base model and specialised model, and evaluating model.
 - Folder Datasets is kept empty to allow datasets to be pasted in for assessment.
 - The root directory contains the `main.py` script that serves as the entry point for executing various functions within the project.
 
@@ -49,14 +49,14 @@ The project has been tested to work well with requirements.txt.
 If you encounter difficulties when compiling the files, please see the specific versions of each library as follows:
 
 ```plaintext
-* torch==2.1.0 (with CUDA 12.3)
-* torchvision==0.16.0
-* matplotlib==3.8.0
-* tqdm==4.66.1
-* numpy==1.26.2
-* Pillow==10.0.1
-* seaborn==0.13.0
-* scikit-learn==1.3.0
+torch==2.1.0 (with CUDA 12.3)
+torchvision==0.16.0
+matplotlib==3.8.0
+tqdm==4.66.1
+numpy==1.26.2
+Pillow==10.0.1
+seaborn==0.13.0
+scikit-learn==1.3.0
 ```
 
 ### Installing
