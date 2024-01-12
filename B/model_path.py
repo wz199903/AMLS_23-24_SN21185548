@@ -43,6 +43,8 @@ class ResNet50(nn.Module):
     def __init__(self):
         super(ResNet50, self).__init__()
         # Choose to load pretrained weights or not
+        #self.model = models.resnet50(weights=None)
+        #self.model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
         self.model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
 
         # Modify the first convolutional layer to accept 3-channel images
