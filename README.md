@@ -48,14 +48,15 @@ If you encounter difficulties when compiling the files, please see the specific 
 * Pillow==10.0.1
 * seaborn==0.13.0
 * scikit-learn==1.3.0
-To install dependencies, run:
+
 
 
 
 ### Installing
+* To install dependencies, run:
 ```bash
-pip install -r requirements.txt ```
-
+pip install -r requirements.txt
+```
 * Paste pneumoniamnist.npz and pathmnist.npz files into Datasets folder
 * Pre-trained models can be accessed at: https://drive.google.com/drive/folders/1tBu78HDPohnKhHxqT-NAbTC3Sqlcp2jX?usp=drive_link.
 Please download and paste them into folders as appropriate.
