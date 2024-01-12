@@ -73,5 +73,5 @@ pip install -r requirements.txt
 * Input prompts have been incorporated to help assess the performance of individual file within the project. 
 Run `main.py` and follow the interactive prompts.
 * Please choose the weights of model when trying to train models with/without pre-trained weights from PyTorch.
-* (e.g. change self.model = models.resnet50(weights=**ResNet50_Weights.IMAGENET1K_V2**) to self.model = models.resnet50(weights=**None**) )
+* e.g. change self.model = models.resnet50(weights=**ResNet50_Weights.IMAGENET1K_V2**) to self.model = models.resnet50(weights=**None**)
 
