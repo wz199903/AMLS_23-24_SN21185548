@@ -12,7 +12,7 @@ import textwrap
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-SPECIALIZED_MODEL_PATH = 'B/specialized_model_path.pth'
+SPECIALISED_MODEL_PATH = 'B/specialised_model_path.pth'
 
 BATCH_SIZE = 64
 
@@ -74,7 +74,7 @@ def main():
         y_true, y_pred, y_scores, auc_scores, accuracy = evaluate_model(base_model, test_loader)
     elif strategy_option == 2:
         # Evaluate using ensemble-like predictions with specialized model
-        specialised_model = load_model(SPECIALIZED_MODEL_PATH, SpecializedResNet50)
+        specialised_model = load_model(SPECIALISED_MODEL_PATH, SpecializedResNet50)
         y_true, y_pred, auc_scores, accuracy = evaluate_combined_model(base_model, specialised_model, test_loader)
 
     target_names = ['Adipose', 'Background', 'Debris', 'Lymphocytes',
